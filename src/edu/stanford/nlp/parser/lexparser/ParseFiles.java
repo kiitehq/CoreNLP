@@ -28,6 +28,7 @@ import edu.stanford.nlp.util.ScoredObject;
 import edu.stanford.nlp.util.Timing;
 import edu.stanford.nlp.util.concurrent.MulticoreWrapper;
 
+import java.io.StringReader;
 
 
 /**
@@ -70,9 +71,9 @@ public class ParseFiles {
   /** Parse the files with names given in the String array args elements from
    *  index argIndex on.  Convenience method which builds and invokes a ParseFiles object.
    */
-  public static void parseFiles(String[] args, int argIndex, boolean tokenized, TokenizerFactory<? extends HasWord> tokenizerFactory, String elementDelimiter, String sentenceDelimiter, Function<List<HasWord>, List<HasWord>> escaper, String tagDelimiter, Options op, TreePrint treePrint, LexicalizedParser pqFactory) {
+  public static void parseFiles(String input, boolean tokenized, TokenizerFactory<? extends HasWord> tokenizerFactory, String elementDelimiter, String sentenceDelimiter, Function<List<HasWord>, List<HasWord>> escaper, String tagDelimiter, Options op, TreePrint treePrint, LexicalizedParser pqFactory) {
     ParseFiles pf = new ParseFiles(op, treePrint, pqFactory);
-    pf.parseFiles(args, argIndex, tokenized, tokenizerFactory, elementDelimiter, sentenceDelimiter, escaper, tagDelimiter);
+    pf.parseInput(input, tokenized, tokenizerFactory, elementDelimiter, sentenceDelimiter, escaper, tagDelimiter);
   }
 
   public ParseFiles(Options op, TreePrint treePrint, LexicalizedParser pqFactory) {
@@ -110,31 +111,40 @@ public class ParseFiles {
 
   }
 
-  public void parseFiles(String[] args, int argIndex, boolean tokenized, TokenizerFactory<? extends HasWord> tokenizerFactory, String elementDelimiter, String sentenceDelimiter, Function<List<HasWord>, List<HasWord>> escaper, String tagDelimiter) {
+  public void parseInput(String input, boolean tokenized, TokenizerFactory<? extends HasWord> tokenizerFactory, String elementDelimiter, String sentenceDelimiter, Function<List<HasWord>, List<HasWord>> escaper, String tagDelimiter) {
     final DocType docType = (elementDelimiter == null) ? DocType.Plain : DocType.XML;
 
     if (op.testOptions.verbose) {
       if(tokenizerFactory != null)
-        pwErr.println("parseFiles: Tokenizer factory is: " + tokenizerFactory);
+        pwErr.println("parseInput: Tokenizer factory is: " + tokenizerFactory);
     }
+
+    int k = 0;
+    while (input.charAt(k) != ' ') {
+        ++k;
+    }
+    String command = input.substring(0, k);
+    while (input.charAt(k) == ' ') {
+        ++k;
+    }
+    int numAlt = 0;
+    if (command.equals("GET")) {
+        int n = k;
+        while (input.charAt(n) != ' ') {
+            ++n;
+        }
+        numAlt = Integer.parseInt(input.substring(k, n));
+        k = n;
+        while (input.charAt(k) == ' ') {
+            ++k;
+        }
+    }
+    input = input.substring(k);
 
     final Timing timer = new Timing();
     // timer.start(); // constructor already starts it.
 
-    //Loop over the files
-    for (int i = argIndex; i < args.length; i++) {
-      final String filename = args[i];
-
-      final DocumentPreprocessor documentPreprocessor;
-      if (filename.equals("-")) {
-        try {
-          documentPreprocessor = new DocumentPreprocessor(IOUtils.readerFromStdin(op.tlpParams.getInputEncoding()), docType);
-        } catch (IOException e) {
-          throw new RuntimeIOException(e);
-        }
-      } else {
-        documentPreprocessor = new DocumentPreprocessor(filename,docType,op.tlpParams.getInputEncoding());
-      }
+      final DocumentPreprocessor documentPreprocessor = new DocumentPreprocessor(new StringReader(input));
 
       //Unused values are null per the main() method invocation below
       //null is the default for these properties
@@ -150,78 +160,35 @@ public class ParseFiles {
 
       //Setup the output
       PrintWriter pwo = pwOut;
-      if (op.testOptions.writeOutputFiles) {
-        String normalizedName = filename;
-        try {
-          new URL(normalizedName); // this will exception if not a URL
-          normalizedName = normalizedName.replaceAll("/","_");
-        } catch (MalformedURLException e) {
-          //It isn't a URL, so silently ignore
-        }
-
-        String ext = (op.testOptions.outputFilesExtension == null) ? "stp" : op.testOptions.outputFilesExtension;
-        String fname = normalizedName + '.' + ext;
-        if (op.testOptions.outputFilesDirectory != null && ! op.testOptions.outputFilesDirectory.isEmpty()) {
-          String fseparator = System.getProperty("file.separator");
-          if (fseparator == null || fseparator.isEmpty()) {
-            fseparator = "/";
-          }
-          File fnameFile = new File(fname);
-          fname = op.testOptions.outputFilesDirectory + fseparator + fnameFile.getName();
-        }
-
-        try {
-          pwo = op.tlpParams.pw(new FileOutputStream(fname));
-        } catch (IOException ioe) {
-          throw new RuntimeIOException(ioe);
-        }
-      }
       treePrint.printHeader(pwo, op.tlpParams.getOutputEncoding());
 
 
-      pwErr.println("Parsing file: " + filename);
+      //pwErr.println("Parsing file: " + filename);
       int num = 0;
       int numProcessed = 0;
-      if (op.testOptions.testingThreads != 1) {
-        MulticoreWrapper<List<? extends HasWord>, ParserQuery> wrapper = new MulticoreWrapper<>(op.testOptions.testingThreads, new ParsingThreadsafeProcessor(pqFactory, pwErr));
 
-        for (List<HasWord> sentence : documentPreprocessor) {
-          num++;
-          numSents++;
-          int len = sentence.size();
-          numWords += len;
-          pwErr.println("Parsing [sent. " + num + " len. " + len + "]: " + SentenceUtils.listToString(sentence, true));
-
-          wrapper.put(sentence);
-          while (wrapper.peek()) {
-            ParserQuery pq = wrapper.poll();
-            processResults(pq, numProcessed++, pwo);
-          }
-        }
-
-        wrapper.join();
-        while (wrapper.peek()) {
-          ParserQuery pq = wrapper.poll();
-          processResults(pq, numProcessed++, pwo);
-        }
-      } else {
         ParserQuery pq = pqFactory.parserQuery();
         for (List<HasWord> sentence : documentPreprocessor) {
           num++;
           numSents++;
           int len = sentence.size();
           numWords += len;
-          pwErr.println("Parsing [sent. " + num + " len. " + len + "]: " + SentenceUtils.listToString(sentence, true));
+
           pq.parseAndReport(sentence, pwErr);
-          processResults(pq, numProcessed++, pwo);
+          if (numAlt > 0) {
+              List<ScoredObject<Tree>> trees = pq.getKBestPCFGParses(numAlt);
+              treePrint.printTrees(trees, Integer.toString(numProcessed), pwo);
+          } else {
+              pwo.println("# Sentence " + num + ", length " + len + ": " + SentenceUtils.listToString(sentence, true));
+              //processResults(pq, numProcessed++, pwo);
+              treePrint.printTree(pq.getBestParse(), Integer.toString(numProcessed), pwo);
+          }
         }
-      }
 
       treePrint.printFooter(pwo);
       if (op.testOptions.writeOutputFiles) pwo.close();
 
-      pwErr.println("Parsed file: " + filename + " [" + num + " sentences].");
-    }
+      //pwErr.println("Parsed file: " + filename + " [" + num + " sentences].");
 
     long millis = timer.stop();
 
@@ -237,9 +204,9 @@ public class ParseFiles {
     double wordspersec = numWords / (((double) millis) / 1000);
     double sentspersec = numSents / (((double) millis) / 1000);
     NumberFormat nf = new DecimalFormat("0.00"); // easier way!
-    pwErr.println("Parsed " + numWords + " words in " + numSents +
-        " sentences (" + nf.format(wordspersec) + " wds/sec; " +
-        nf.format(sentspersec) + " sents/sec).");
+    //pwErr.println("Parsed " + numWords + " words in " + numSents +
+        //" sentences (" + nf.format(wordspersec) + " wds/sec; " +
+        //nf.format(sentspersec) + " sents/sec).");
     if (numFallback > 0) {
       pwErr.println("  " + numFallback + " sentences were parsed by fallback to PCFG.");
     }
@@ -255,7 +222,7 @@ public class ParseFiles {
         pwErr.println("    " + numSkipped + " were skipped as length 0 or greater than " + op.testOptions.maxLength);
       }
     }
-  } // end parseFiles
+  } // end parseInput
 
   public void processResults(ParserQuery parserQuery, int num, PrintWriter pwo) {
     if (parserQuery.parseSkipped()) {
