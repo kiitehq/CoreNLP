@@ -144,51 +144,48 @@ public class ParseFiles {
     final Timing timer = new Timing();
     // timer.start(); // constructor already starts it.
 
-      final DocumentPreprocessor documentPreprocessor = new DocumentPreprocessor(new StringReader(input));
+    final DocumentPreprocessor documentPreprocessor = new DocumentPreprocessor(new StringReader(input));
 
-      //Unused values are null per the main() method invocation below
-      //null is the default for these properties
-      documentPreprocessor.setSentenceFinalPuncWords(tlp.sentenceFinalPunctuationWords());
-      documentPreprocessor.setEscaper(escaper);
-      documentPreprocessor.setSentenceDelimiter(sentenceDelimiter);
-      documentPreprocessor.setTagDelimiter(tagDelimiter);
-      documentPreprocessor.setElementDelimiter(elementDelimiter);
-      if(tokenizerFactory == null)
-        documentPreprocessor.setTokenizerFactory((tokenized) ? null : tlp.getTokenizerFactory());
-      else
-        documentPreprocessor.setTokenizerFactory(tokenizerFactory);
+    //Unused values are null per the main() method invocation below
+    //null is the default for these properties
+    documentPreprocessor.setSentenceFinalPuncWords(tlp.sentenceFinalPunctuationWords());
+    documentPreprocessor.setEscaper(escaper);
+    documentPreprocessor.setSentenceDelimiter(sentenceDelimiter);
+    documentPreprocessor.setTagDelimiter(tagDelimiter);
+    documentPreprocessor.setElementDelimiter(elementDelimiter);
+    if(tokenizerFactory == null)
+      documentPreprocessor.setTokenizerFactory((tokenized) ? null : tlp.getTokenizerFactory());
+    else
+      documentPreprocessor.setTokenizerFactory(tokenizerFactory);
 
-      //Setup the output
-      PrintWriter pwo = pwOut;
-      treePrint.printHeader(pwo, op.tlpParams.getOutputEncoding());
+    //Setup the output
+    PrintWriter pwo = pwOut;
+    treePrint.printHeader(pwo, op.tlpParams.getOutputEncoding());
 
 
-      //pwErr.println("Parsing file: " + filename);
-      int num = 0;
-      int numProcessed = 0;
+    int num = 0;
+    int numProcessed = 0;
 
-        ParserQuery pq = pqFactory.parserQuery();
-        for (List<HasWord> sentence : documentPreprocessor) {
-          num++;
-          numSents++;
-          int len = sentence.size();
-          numWords += len;
+    ParserQuery pq = pqFactory.parserQuery();
+    for (List<HasWord> sentence : documentPreprocessor) {
+      num++;
+      numSents++;
+      int len = sentence.size();
+      numWords += len;
 
-          pq.parseAndReport(sentence, pwErr);
-          if (numAlt > 0) {
-              List<ScoredObject<Tree>> trees = pq.getKBestPCFGParses(numAlt);
-              treePrint.printTrees(trees, Integer.toString(numProcessed), pwo);
-          } else {
-              pwo.println("# Sentence " + num + ", length " + len + ": " + SentenceUtils.listToString(sentence, true));
-              //processResults(pq, numProcessed++, pwo);
-              treePrint.printTree(pq.getBestParse(), Integer.toString(numProcessed), pwo);
-          }
-        }
+      pq.parseAndReport(sentence, pwErr);
+      if (numAlt > 0) {
+          List<ScoredObject<Tree>> trees = pq.getKBestPCFGParses(numAlt);
+          treePrint.printTrees(trees, Integer.toString(numProcessed), pwo);
+      } else {
+          pwo.println("# Sentence " + num + ", length " + len + ": " + SentenceUtils.listToString(sentence, true));
+          treePrint.printTree(pq.getBestParse(), Integer.toString(numProcessed), pwo);
+      }
+    }
 
-      treePrint.printFooter(pwo);
-      if (op.testOptions.writeOutputFiles) pwo.close();
+    treePrint.printFooter(pwo);
+    if (op.testOptions.writeOutputFiles) pwo.close();
 
-      //pwErr.println("Parsed file: " + filename + " [" + num + " sentences].");
 
     long millis = timer.stop();
 
@@ -204,9 +201,7 @@ public class ParseFiles {
     double wordspersec = numWords / (((double) millis) / 1000);
     double sentspersec = numSents / (((double) millis) / 1000);
     NumberFormat nf = new DecimalFormat("0.00"); // easier way!
-    //pwErr.println("Parsed " + numWords + " words in " + numSents +
-        //" sentences (" + nf.format(wordspersec) + " wds/sec; " +
-        //nf.format(sentspersec) + " sents/sec).");
+
     if (numFallback > 0) {
       pwErr.println("  " + numFallback + " sentences were parsed by fallback to PCFG.");
     }

@@ -1515,21 +1515,12 @@ public class LexicalizedParser extends ParserGrammar implements Serializable  {
           BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
           String input;
           while ((input = br.readLine()) != null) {
-              //System.out.println("The sentence is: " + input);
               ParseFiles.parseFiles(input, tokenized, tokenizerFactory, elementDelimiter, sentenceDelimiter, escaper, tagDelimiter, op, lp.getTreePrint(), lp);
               pwOut.println("<READY>");
           }
-          //System.out.println("Bye!");
       } catch(IOException io) {
           io.printStackTrace();
       }       
-      //ParserQuery pq = lp.parserQuery();
-      //if (pq.parse(op.tlpParams.defaultTestSentence())) {
-        //lp.getTreePrint().printTree(pq.getBestParse(), pwOut);
-      //} else {
-        //pwErr.println("Error. Can't parse test sentence: " +
-                      //op.tlpParams.defaultTestSentence());
-      //}
     }
 
   } // end main
