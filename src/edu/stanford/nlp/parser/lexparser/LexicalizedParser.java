@@ -63,6 +63,10 @@ import java.util.zip.ZipFile;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+
 
 
 /**
@@ -1501,20 +1505,22 @@ public class LexicalizedParser extends ParserGrammar implements Serializable  {
       // test parser on treebank
       EvaluateTreebank evaluator = new EvaluateTreebank(lp);
       evaluator.testOnTreebank(testTreebank);
-    } else if (argIndex >= args.length) {
-      // no more arguments, so we just parse our own test sentence
+    } else {
+      // Ignore further arguments
       PrintWriter pwOut = op.tlpParams.pw();
       PrintWriter pwErr = op.tlpParams.pw(System.err);
-      ParserQuery pq = lp.parserQuery();
-      if (pq.parse(op.tlpParams.defaultTestSentence())) {
-        lp.getTreePrint().printTree(pq.getBestParse(), pwOut);
-      } else {
-        pwErr.println("Error. Can't parse test sentence: " +
-                      op.tlpParams.defaultTestSentence());
-      }
-    } else {
-      // We parse filenames given by the remaining arguments
-      ParseFiles.parseFiles(args, argIndex, tokenized, tokenizerFactory, elementDelimiter, sentenceDelimiter, escaper, tagDelimiter, op, lp.getTreePrint(), lp);
+
+      try {
+          pwOut.println("<READY>");
+          BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+          String input;
+          while ((input = br.readLine()) != null) {
+              ParseFiles.parseFiles(input, tokenized, tokenizerFactory, elementDelimiter, sentenceDelimiter, escaper, tagDelimiter, op, lp.getTreePrint(), lp);
+              pwOut.println("<READY>");
+          }
+      } catch(IOException io) {
+          io.printStackTrace();
+      }       
     }
 
   } // end main
